@@ -1,3 +1,5 @@
+import modeloLogistico from "./modeloLogistico";
+
 const eulerAprimorado = (r, K, y0, tf, h) => {
     const n = Math.floor(tf / h);
     const resultado = [];
