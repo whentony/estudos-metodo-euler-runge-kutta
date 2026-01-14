@@ -1,4 +1,4 @@
-import modeloLogistico from "./modeloLogistico";
+import modeloLogistico from "./modelos";
 
 export default function euler(r, K, y0, tf, h) {
     const n = Math.floor(tf / h);

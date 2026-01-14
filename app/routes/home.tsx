@@ -1,15 +1,306 @@
 import React, { useState, useMemo } from 'react';
-import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
+import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, ScatterChart, Scatter } from 'recharts';
 import euler from '~/utils/metodoEuler';
 import eulerAprimorado from '~/utils/metodoEulerAprimorado';
 import rungeKutta4 from '~/utils/metodoRungeKutta4';
+import rungeKutta4Sistema from '~/utils/modelos';
 import solucaoExata from '~/utils/solucaoExata';
+
+// ============================================================================
+// COMPONENTE PREDADOR-PRESA
+// ============================================================================
+function PredadorPresa() {
+  // Parâmetros do modelo predador-presa - AJUSTADOS PARA ÓRBITAS FECHADAS
+  const [a, setA] = useState(1.0);    // Taxa de crescimento das presas
+  const [b, setB] = useState(0.1);    // Taxa de predação
+  const [c, setC] = useState(0.075);  // Taxa de crescimento dos predadores
+  const [d, setD] = useState(1.5);    // Taxa de mortalidade dos predadores
+  const [tf, setTf] = useState(100);  // Tempo final reduzido
+  const [h, setH] = useState(0.05);   // Passo ajustado para performance
+
+  // Múltiplas condições iniciais - próximas do ponto de equilíbrio
+  const [trajetorias, setTrajetorias] = useState([
+    { x10: 15, x20: 10, ativo: true, cor: '#ef4444' },
+    { x10: 18, x20: 12, ativo: true, cor: '#f59e0b' },
+    { x10: 22, x20: 15, ativo: true, cor: '#8b5cf6' },
+    { x10: 12, x20: 8, ativo: false, cor: '#10b981' },
+  ]);
+
+  const atualizarTrajetoria = (index: number, campo: string, valor: any) => {
+    const novasTrajetorias = [...trajetorias];
+    novasTrajetorias[index] = { ...novasTrajetorias[index], [campo]: valor };
+    setTrajetorias(novasTrajetorias);
+  };
+
+  const dados = useMemo(() => {
+    const trajetoriasAtivas = trajetorias.filter(t => t.ativo);
+
+    // Calcular todas as trajetórias
+    const todasTrajetorias = trajetoriasAtivas.map(traj => {
+      const f1Local = (t: number, x1: number, x2: number): number => a * x1 - b * x1 * x2;
+      const f2Local = (t: number, x1: number, x2: number): number => -d * x2 + c * x1 * x2;
+
+      const resultados = rungeKutta4Sistema(f1Local, f2Local, traj.x10, traj.x20, tf, h);
+
+      // OTIMIZAÇÃO: Reduzir pontos para renderização (pegar 1 a cada 5 pontos)
+      const resultadosReduzidos = resultados.filter((_, idx) => idx % 5 === 0);
+
+      return {
+        ...traj,
+        dados: resultadosReduzidos
+      };
+    });
+
+    // Para gráfico temporal, usar apenas a primeira trajetória ativa
+    const dadosTemporal = todasTrajetorias[0]?.dados || [];
+
+    return { todasTrajetorias, dadosTemporal };
+  }, [a, b, c, d, trajetorias, tf, h]);
+
+  const Slider = ({ label, value, setValue, min, max, step }: {
+    label: string;
+    value: number;
+    setValue: (v: number) => void;
+    min: number;
+    max: number;
+    step: number
+  }) => (
+    <div className="mb-4">
+      <div className="flex justify-between items-center mb-1">
+        <label className="text-sm font-medium text-gray-700">{label}</label>
+        <span className="text-sm font-bold text-blue-600">{value.toFixed(2)}</span>
+      </div>
+      <input
+        type="range"
+        min={min}
+        max={max}
+        step={step}
+        value={value}
+        onChange={(e) => setValue(parseFloat(e.target.value))}
+        className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer accent-blue-600"
+      />
+    </div>
+  );
+
+  return (
+    <div className="min-h-screen bg-gray-50 p-4">
+      <div className="max-w-7xl mx-auto">
+        <div className="text-center mb-4">
+          <h1 className="text-xl font-bold text-gray-800">
+            Modelo Predador-Presa (Lotka-Volterra) - Runge-Kutta 4
+          </h1>
+          <p className="text-gray-600 text-sm mt-1">
+            dx₁/dt = ax₁ - bx₁x₂ &nbsp;&nbsp;|&nbsp;&nbsp; dx₂/dt = -dx₂ + cx₁x₂
+          </p>
+        </div>
+
+        <div className="grid grid-cols-1 lg:grid-cols-4 gap-4">
+          {/* Controles */}
+          <div className="space-y-4">
+            <div className="bg-white rounded-lg shadow p-4">
+              <h2 className="text-sm font-bold text-gray-800 mb-4 pb-2 border-b">Parâmetros</h2>
+              <Slider label="a (crescimento presas)" value={a} setValue={setA} min={0.1} max={2} step={0.1} />
+              <Slider label="b (taxa predação)" value={b} setValue={setB} min={0.01} max={0.5} step={0.01} />
+              <Slider label="c (crescimento predadores)" value={c} setValue={setC} min={0.01} max={0.2} step={0.005} />
+              <Slider label="d (mortalidade predadores)" value={d} setValue={setD} min={0.1} max={3} step={0.1} />
+
+              <div className="mt-3 p-2 bg-blue-50 border border-blue-200 rounded text-xs text-blue-800">
+                <strong>Ponto de Equilíbrio:</strong><br />
+                x₁* = {(d / c).toFixed(1)} | x₂* = {(a / b).toFixed(1)}
+              </div>
+            </div>
+
+            <div className="bg-white rounded-lg shadow p-4">
+              <h2 className="text-sm font-bold text-gray-800 mb-4 pb-2 border-b">Condições Iniciais</h2>
+              {trajetorias.map((traj, idx) => (
+                <div key={idx} className="mb-3 p-2 bg-gray-50 rounded">
+                  <div className="flex items-center gap-2 mb-2">
+                    <input
+                      type="checkbox"
+                      checked={traj.ativo}
+                      onChange={(e) => atualizarTrajetoria(idx, 'ativo', e.target.checked)}
+                      className="w-4 h-4 accent-blue-600"
+                    />
+                    <span
+                      className="w-4 h-4 rounded-full"
+                      style={{ backgroundColor: traj.cor }}
+                    ></span>
+                    <span className="text-xs font-medium text-gray-700">Trajetória {idx + 1}</span>
+                  </div>
+                  <div className="space-y-1">
+                    <div className="flex items-center gap-2">
+                      <span className="text-xs text-gray-600 w-12">Presas:</span>
+                      <input
+                        type="number"
+                        value={traj.x10}
+                        onChange={(e) => atualizarTrajetoria(idx, 'x10', parseFloat(e.target.value) || 1)}
+                        disabled={!traj.ativo}
+                        className="flex-1 px-2 py-1 text-xs border rounded disabled:bg-gray-100 text-gray-800 disabled:text-gray-500"
+                        min="1"
+                        max="100"
+                        style={{ color: traj.ativo ? '#1f2937' : '#6b7280' }}
+                      />
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <span className="text-xs text-gray-600 w-12">Pred.:</span>
+                      <input
+                        type="number"
+                        value={traj.x20}
+                        onChange={(e) => atualizarTrajetoria(idx, 'x20', parseFloat(e.target.value) || 1)}
+                        disabled={!traj.ativo}
+                        className="flex-1 px-2 py-1 text-xs border rounded disabled:bg-gray-100 text-gray-800 disabled:text-gray-500"
+                        min="1"
+                        max="50"
+                        style={{ color: traj.ativo ? '#1f2937' : '#6b7280' }}
+                      />
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            <div className="bg-white rounded-lg shadow p-4">
+              <h2 className="text-sm font-bold text-gray-800 mb-4 pb-2 border-b">Simulação</h2>
+              <Slider label="Tempo Final" value={tf} setValue={setTf} min={20} max={200} step={10} />
+              <Slider label="Passo h" value={h} setValue={setH} min={0.01} max={0.2} step={0.01} />
+
+              <div className="mt-3 p-2 bg-amber-50 border border-amber-200 rounded text-xs text-amber-800">
+                💡 <strong>h = 0.05</strong> oferece bom equilíbrio entre precisão e performance
+              </div>
+            </div>
+          </div>
+
+          {/* Gráficos */}
+          <div className="lg:col-span-3 space-y-4">
+            {/* Gráfico Temporal */}
+            <div className="bg-white rounded-lg shadow p-4">
+              <h3 className="font-bold text-gray-800 mb-3 text-center">Evolução Temporal (Trajetória 1)</h3>
+              <div className="h-72">
+                <ResponsiveContainer width="100%" height="100%">
+                  <LineChart data={dados.dadosTemporal} margin={{ top: 10, right: 30, left: 10, bottom: 20 }}>
+                    <CartesianGrid strokeDasharray="3 3" stroke="#e0e0e0" />
+                    <XAxis
+                      dataKey="t"
+                      label={{ value: 'Tempo (t)', position: 'bottom', offset: 0 }}
+                      tick={{ fontSize: 11 }}
+                    />
+                    <YAxis
+                      label={{ value: 'População', angle: -90, position: 'insideLeft' }}
+                      tick={{ fontSize: 11 }}
+                    />
+                    <Tooltip />
+                    <Legend wrapperStyle={{ fontSize: '12px' }} />
+                    <Line
+                      type="monotone"
+                      dataKey="x1"
+                      stroke="#22c55e"
+                      strokeWidth={2.5}
+                      dot={false}
+                      name="Presas (x₁)"
+                      isAnimationActive={false}
+                    />
+                    <Line
+                      type="monotone"
+                      dataKey="x2"
+                      stroke="#ef4444"
+                      strokeWidth={2.5}
+                      dot={false}
+                      name="Predadores (x₂)"
+                      isAnimationActive={false}
+                    />
+                  </LineChart>
+                </ResponsiveContainer>
+              </div>
+            </div>
+
+            {/* Diagrama de Fase com múltiplas trajetórias */}
+            <div className="bg-white rounded-lg shadow p-4">
+              <h3 className="font-bold text-gray-800 mb-3 text-center">Diagrama de Fase (Retrato de Fase)</h3>
+              <div className="h-72">
+                <ResponsiveContainer width="100%" height="100%">
+                  <ScatterChart margin={{ top: 10, right: 30, left: 10, bottom: 20 }}>
+                    <CartesianGrid strokeDasharray="3 3" stroke="#e0e0e0" />
+                    <XAxis
+                      type="number"
+                      dataKey="x1"
+                      name="Presas"
+                      label={{ value: 'Presas (x₁)', position: 'bottom', offset: 0 }}
+                      tick={{ fontSize: 11 }}
+                    />
+                    <YAxis
+                      type="number"
+                      dataKey="x2"
+                      name="Predadores"
+                      label={{ value: 'Predadores (x₂)', angle: -90, position: 'insideLeft' }}
+                      tick={{ fontSize: 11 }}
+                    />
+                    <Tooltip cursor={{ strokeDasharray: '3 3' }} />
+                    <Legend wrapperStyle={{ fontSize: '11px' }} />
+
+                    {/* Renderizar cada trajetória */}
+                    {dados.todasTrajetorias.map((traj, idx) => (
+                      <Scatter
+                        key={idx}
+                        data={traj.dados}
+                        fill={traj.cor}
+                        line={{ stroke: traj.cor, strokeWidth: 2 }}
+                        lineType="joint"
+                        name={`X0=(${traj.x10}, ${traj.x20})`}
+                        isAnimationActive={false}
+                      />
+                    ))}
+                  </ScatterChart>
+                </ResponsiveContainer>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Informações do Modelo */}
+        <div className="mt-4 bg-white rounded-lg shadow p-4">
+          <h3 className="font-bold text-gray-800 mb-3">Sobre o Modelo Predador-Presa</h3>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
+            <div className="p-3 bg-green-50 rounded-lg border-l-4 border-green-500">
+              <div className="font-bold text-green-700 mb-2">Equação das Presas (x₁)</div>
+              <div className="font-mono text-xs text-gray-800 bg-white p-2 rounded mb-2">
+                dx₁/dt = ax₁ - bx₁x₂
+              </div>
+              <p className="text-xs text-gray-600">
+                <strong>a</strong>: taxa de crescimento natural das presas<br />
+                <strong>b</strong>: taxa na qual predadores consomem presas
+              </p>
+            </div>
+            <div className="p-3 bg-red-50 rounded-lg border-l-4 border-red-500">
+              <div className="font-bold text-red-700 mb-2">Equação dos Predadores (x₂)</div>
+              <div className="font-mono text-xs text-gray-800 bg-white p-2 rounded mb-2">
+                dx₂/dt = -dx₂ + cx₁x₂
+              </div>
+              <p className="text-xs text-gray-600">
+                <strong>d</strong>: taxa de mortalidade dos predadores<br />
+                <strong>c</strong>: eficiência na conversão de presas em predadores
+              </p>
+            </div>
+          </div>
+          <div className="mt-3 p-3 bg-purple-50 border border-purple-200 rounded-lg">
+            <p className="text-sm text-purple-900">
+              <strong>📊 Dinâmica:</strong> O sistema apresenta oscilações periódicas. Quando há muitas presas,
+              os predadores crescem. Com muitos predadores, as presas diminuem, levando à redução dos predadores,
+              permitindo que as presas cresçam novamente, formando ciclos.
+            </p>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
 
 // ============================================================================
 // COMPONENTE PRINCIPAL
 // ============================================================================
 
 export default function ModeloLogisticoCorrigido() {
+  const [modeloAtivo, setModeloAtivo] = useState('logistico');
+
   // Parâmetros - h=5 por padrão para mostrar diferença clara entre métodos
   const [r, setR] = useState(0.05);
   const [K, setK] = useState(1.0);
@@ -105,8 +396,52 @@ export default function ModeloLogisticoCorrigido() {
 
   const condicoesAtivasCount = condicoes.filter(c => c.ativo).length;
 
+  // Se o modelo ativo for predador-presa, renderizar o componente
+  if (modeloAtivo === 'predador-presa') {
+    return (
+      <div className="min-h-screen bg-gray-50 p-4">
+        {/* Seletor de Modelo */}
+        <div className="max-w-7xl mx-auto mb-4">
+          <div className="bg-white rounded-lg shadow p-3 flex items-center justify-center gap-4">
+            <button
+              onClick={() => setModeloAtivo('logistico')}
+              className="px-6 py-2 rounded-lg font-medium transition-all bg-gray-100 text-gray-700 hover:bg-gray-200"
+            >
+              Modelo Logístico
+            </button>
+            <button
+              onClick={() => setModeloAtivo('predador-presa')}
+              className="px-6 py-2 rounded-lg font-medium transition-all bg-blue-600 text-white shadow-md"
+            >
+              Predador-Presa (Lotka-Volterra)
+            </button>
+          </div>
+        </div>
+        <PredadorPresa />
+      </div>
+    );
+  }
+
   return (
     <div className="min-h-screen bg-gray-50 p-4">
+      {/* Seletor de Modelo */}
+      <div className="max-w-7xl mx-auto mb-4">
+        <div className="bg-white rounded-lg shadow p-3 flex items-center justify-center gap-4">
+          <button
+            onClick={() => setModeloAtivo('logistico')}
+            className="px-6 py-2 rounded-lg font-medium transition-all bg-blue-600 text-white shadow-md"
+          >
+            Modelo Logístico
+          </button>
+          <button
+            onClick={() => setModeloAtivo('predador-presa')}
+            className="px-6 py-2 rounded-lg font-medium transition-all bg-gray-100 text-gray-700 hover:bg-gray-200"
+          >
+            Predador-Presa (Lotka-Volterra)
+          </button>
+        </div>
+      </div>
+
       <div className="max-w-7xl mx-auto">
         {/* Título */}
         <div className="text-center mb-4">

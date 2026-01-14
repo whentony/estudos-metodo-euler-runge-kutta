@@ -1,0 +1,223 @@
+\documentclass[11pt,a4paper]{article}
+\usepackage[utf8]{inputenc}
+\usepackage[T1]{fontenc}
+\usepackage[brazilian]{babel}
+\usepackage{amsmath,amssymb,amsfonts}
+\usepackage{graphicx}
+\usepackage{booktabs}
+\usepackage{hyperref}
+\usepackage[margin=2cm]{geometry}
+\usepackage{float}
+\usepackage{caption}
+\usepackage{setspace}
+\setstretch{0.95}
+
+\title{\textbf{Análise Comparativa de Métodos Numéricos para Equações Diferenciais Ordinárias: Euler, Euler Aprimorado e Runge-Kutta de 4ª Ordem}}
+
+\author{
+    Whentony Soares Ferreira\\
+    \\
+    Disciplina de Sistemas Dinâmicos\\
+    Doutorado em Modelagem Matemática e Computacional\\
+    CEFET-MG
+}
+
+\date{Novembro de 2025}
+
+\begin{document}
+
+\maketitle
+
+\begin{abstract}
+Este trabalho apresenta uma análise comparativa entre os métodos numéricos de Euler, Euler Aprimorado e Runge-Kutta de 4ª ordem para resolução de equações diferenciais ordinárias. A implementação foi realizada utilizando tecnologias web modernas (React, TypeScript) aplicadas ao modelo logístico de crescimento populacional e ao sistema predador-presa de Lotka-Volterra. Os resultados demonstram a relação entre a ordem do método e a precisão da solução, evidenciando a importância da escolha adequada do método numérico na discretização de sistemas contínuos e a extensão para sistemas de EDOs acopladas.
+\end{abstract}
+
+\textbf{Palavras-chave:} Métodos Numéricos, Euler, Runge-Kutta, Sistemas Dinâmicos, Discretização, Lotka-Volterra.
+
+\section{Introdução}
+
+A disciplina de Sistemas Dinâmicos no programa de Doutorado em Modelagem Matemática e Computacional do CEFET-MG aborda o estudo de sistemas que evoluem ao longo do tempo, descritos por equações diferenciais. Um dos desafios fundamentais nesta área é a obtenção de soluções numéricas precisas quando soluções analíticas não estão disponíveis ou são de difícil obtenção.
+
+Este trabalho apresenta uma ferramenta interativa desenvolvida para comparar três métodos numéricos clássicos: Euler, Euler Aprimorado (método de Heun) e Runge-Kutta de 4ª ordem (RK4). Dois modelos são utilizados como casos de estudo: (1) o modelo logístico de crescimento populacional, cuja equação diferencial possui solução analítica conhecida, permitindo a análise quantitativa dos erros; e (2) o sistema predador-presa de Lotka-Volterra, um sistema de equações diferenciais ordinárias acopladas que demonstra comportamento oscilatório característico de interações ecológicas.
+
+\section{Fundamentação Teórica}
+
+\subsection{O Modelo Logístico}
+
+O modelo logístico é descrito pela equação diferencial ordinária:
+\begin{equation}
+    \frac{dy}{dt} = r \cdot y \cdot \left(1 - \frac{y}{K}\right)
+\end{equation}
+onde $y(t)$ representa a população no instante $t$, $r$ é a taxa de crescimento intrínseca e $K$ é a capacidade de suporte do ambiente. A solução analítica é dada por:
+\begin{equation}
+    y(t) = \frac{K \cdot y_0}{y_0 + (K - y_0) \cdot e^{-rt}}
+\end{equation}
+
+\subsection{O Sistema Predador-Presa de Lotka-Volterra}
+
+O modelo de Lotka-Volterra descreve a dinâmica de interação entre duas espécies: presas ($x_1$) e predadores ($x_2$). O sistema é dado por:
+\begin{align}
+    \frac{dx_1}{dt} &= ax_1 - bx_1x_2 \label{eq:presa}\\
+    \frac{dx_2}{dt} &= -dx_2 + cx_1x_2 \label{eq:predador}
+\end{align}
+
+onde:
+\begin{itemize}
+    \item $a$: taxa de crescimento das presas na ausência de predadores
+    \item $b$: taxa na qual predadores capturam presas
+    \item $c$: eficiência de conversão de presas em novos predadores
+    \item $d$: taxa de mortalidade dos predadores na ausência de presas
+\end{itemize}
+
+Este sistema apresenta um ponto de equilíbrio não-trivial em:
+\begin{equation}
+    x_1^* = \frac{d}{c}, \quad x_2^* = \frac{a}{b}
+\end{equation}
+
+O sistema exibe comportamento oscilatório periódico ao redor deste ponto de equilíbrio, com órbitas fechadas no espaço de fases, representando ciclos populacionais onde o aumento de presas leva ao crescimento de predadores, que por sua vez reduzem a população de presas, levando à diminuição dos predadores e reiniciando o ciclo.
+
+\subsection{Métodos Numéricos}
+
+\textbf{Método de Euler (Ordem 1):} É o método mais simples, baseado na aproximação de primeira ordem da série de Taylor:
+\begin{equation}
+    y_{n+1} = y_n + h \cdot f(t_n, y_n)
+\end{equation}
+O erro local de truncamento é $O(h^2)$ e o erro global é $O(h)$.
+
+\textbf{Método de Euler Aprimorado (Ordem 2):} Também conhecido como método de Heun, utiliza uma média ponderada das inclinações:
+\begin{align}
+    k_1 &= f(t_n, y_n) \\
+    k_2 &= f(t_n + h, y_n + h \cdot k_1) \\
+    y_{n+1} &= y_n + \frac{h}{2}(k_1 + k_2)
+\end{align}
+O erro local é $O(h^3)$ e o erro global é $O(h^2)$.
+
+\textbf{Método de Runge-Kutta de 4ª Ordem:} É um dos métodos mais utilizados devido ao equilíbrio entre precisão e custo computacional:
+\begin{align}
+    k_1 &= f(t_n, y_n) \\
+    k_2 &= f(t_n + h/2, y_n + h \cdot k_1/2) \\
+    k_3 &= f(t_n + h/2, y_n + h \cdot k_2/2) \\
+    k_4 &= f(t_n + h, y_n + h \cdot k_3) \\
+    y_{n+1} &= y_n + \frac{h}{6}(k_1 + 2k_2 + 2k_3 + k_4)
+\end{align}
+O erro local é $O(h^5)$ e o erro global é $O(h^4)$.
+
+\subsubsection{Extensão para Sistemas de EDOs}
+
+Para sistemas de equações diferenciais ordinárias, como o modelo predador-presa, o método de Runge-Kutta é aplicado vetorialmente. Considerando o sistema:
+\begin{align}
+    \frac{dx_1}{dt} &= f_1(t, x_1, x_2) \\
+    \frac{dx_2}{dt} &= f_2(t, x_1, x_2)
+\end{align}
+
+O algoritmo RK4 vetorial é dado por:
+\begin{align}
+    k_{1,1} &= f_1(t_n, x_{1,n}, x_{2,n}), \quad k_{1,2} = f_2(t_n, x_{1,n}, x_{2,n}) \\
+    k_{2,1} &= f_1(t_n + h/2, x_{1,n} + hk_{1,1}/2, x_{2,n} + hk_{1,2}/2) \\
+    k_{2,2} &= f_2(t_n + h/2, x_{1,n} + hk_{1,1}/2, x_{2,n} + hk_{1,2}/2) \\
+    k_{3,1} &= f_1(t_n + h/2, x_{1,n} + hk_{2,1}/2, x_{2,n} + hk_{2,2}/2) \\
+    k_{3,2} &= f_2(t_n + h/2, x_{1,n} + hk_{2,1}/2, x_{2,n} + hk_{2,2}/2) \\
+    k_{4,1} &= f_1(t_n + h, x_{1,n} + hk_{3,1}, x_{2,n} + hk_{3,2}) \\
+    k_{4,2} &= f_2(t_n + h, x_{1,n} + hk_{3,1}, x_{2,n} + hk_{3,2}) \\
+    x_{1,n+1} &= x_{1,n} + \frac{h}{6}(k_{1,1} + 2k_{2,1} + 2k_{3,1} + k_{4,1}) \\
+    x_{2,n+1} &= x_{2,n} + \frac{h}{6}(k_{1,2} + 2k_{2,2} + 2k_{3,2} + k_{4,2})
+\end{align}
+
+\subsection{Dados Contínuos versus Discretos}
+
+A passagem de um sistema contínuo para sua representação discreta é um processo fundamental em modelagem computacional. Sistemas contínuos são descritos por equações diferenciais onde as variáveis evoluem continuamente no tempo. Entretanto, computadores trabalham com representações discretas, necessitando de métodos numéricos para aproximar soluções.
+
+O parâmetro $h$ (passo de integração) determina a granularidade da discretização. Um $h$ muito grande pode gerar erros significativos ou até instabilidade numérica, enquanto um $h$ muito pequeno aumenta o custo computacional. A escolha adequada de $h$ depende da dinâmica do sistema e da precisão desejada.
+
+Para sistemas oscilatórios como o predador-presa, um $h$ inadequado pode levar ao acúmulo de erros que fazem as órbitas fechadas se transformarem em espirais divergentes ou convergentes, distorcendo o comportamento qualitativo do sistema.
+
+\section{Tecnologias Utilizadas}
+
+A implementação foi desenvolvida como uma aplicação web interativa utilizando:
+
+\begin{itemize}
+    \item \textbf{React:} Biblioteca JavaScript para construção de interfaces de usuário reativas.
+    \item \textbf{TypeScript:} Superset do JavaScript que adiciona tipagem estática, aumentando a robustez do código.
+    \item \textbf{Recharts:} Biblioteca para visualização de dados em gráficos interativos, incluindo gráficos de linha para evolução temporal e gráficos de dispersão para diagramas de fase.
+    \item \textbf{React Router:} Gerenciamento de rotas na aplicação.
+    \item \textbf{Tailwind CSS:} Framework CSS para estilização responsiva.
+\end{itemize}
+
+A arquitetura modular separa os métodos numéricos em módulos independentes (\texttt{metodoEuler.ts}, \texttt{metodoEulerAprimorado.ts}, \texttt{metodoRungeKutta4.ts}), facilitando manutenção e extensibilidade. Para o sistema predador-presa, foi implementada uma versão especializada do RK4 que opera sobre vetores de estado, permitindo a resolução simultânea das equações acopladas.
+
+\section{Resultados e Análise de Erros}
+
+\subsection{Modelo Logístico}
+
+A Tabela \ref{tab:erros} apresenta os erros máximos obtidos para diferentes valores do passo $h$, considerando $r = 0.05$, $K = 1.0$, $y_0 = 0.15$ e $t_f = 100$.
+
+\begin{table}[H]
+\centering
+\caption{Comparação dos erros máximos entre os métodos no modelo logístico}
+\label{tab:erros}
+\begin{tabular}{@{}cccc@{}}
+\toprule
+\textbf{Passo (h)} & \textbf{Euler} & \textbf{Euler Aprimorado} & \textbf{RK4} \\ \midrule
+10.0 & $1.2 \times 10^{-1}$ & $2.8 \times 10^{-2}$ & $4.1 \times 10^{-4}$ \\
+5.0  & $6.8 \times 10^{-2}$ & $7.5 \times 10^{-3}$ & $2.7 \times 10^{-5}$ \\
+1.0  & $1.5 \times 10^{-2}$ & $3.2 \times 10^{-4}$ & $4.5 \times 10^{-8}$ \\
+0.5  & $7.6 \times 10^{-3}$ & $8.1 \times 10^{-5}$ & $2.8 \times 10^{-9}$ \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+Os resultados confirmam a teoria: ao reduzir $h$ pela metade, o erro do Euler reduz aproximadamente pela metade (ordem 1), o Euler Aprimorado reduz por um fator de 4 (ordem 2), e o RK4 reduz por um fator de 16 (ordem 4).
+
+Para $h = 5.0$, o método de Euler apresenta erro aproximadamente 2.500 vezes maior que o RK4, evidenciando a superioridade de métodos de ordem superior quando maior precisão é necessária.
+
+\subsection{Sistema Predador-Presa}
+
+Para o sistema de Lotka-Volterra, utilizou-se os parâmetros $a = 1.0$, $b = 0.1$, $c = 0.075$, $d = 1.5$, resultando em um ponto de equilíbrio em $(x_1^*, x_2^*) = (20, 10)$. Foram testadas múltiplas condições iniciais próximas ao equilíbrio: $(15, 10)$, $(18, 12)$ e $(22, 15)$.
+
+\subsubsection{Análise Qualitativa}
+
+Com $h = 0.05$ e $t_f = 100$, o método RK4 preservou com precisão as órbitas fechadas características do sistema, formando ciclos periódicos no diagrama de fase (espaço $x_1 \times x_2$). Cada condição inicial gerou uma órbita fechada distinta, com amplitudes proporcionais à distância do ponto de equilíbrio.
+
+O gráfico de evolução temporal revelou oscilações defasadas entre presas e predadores, onde o pico da população de presas precede o pico de predadores, consistente com a dinâmica ecológica esperada.
+
+\subsubsection{Estabilidade Numérica}
+
+Testes com passos maiores ($h > 0.1$) resultaram em órbitas espirais (convergentes ou divergentes), distorcendo o comportamento conservativo do sistema. Isso demonstra a importância de um passo de integração adequado para preservar propriedades qualitativas de sistemas dinâmicos.
+
+\subsubsection{Otimização Computacional}
+
+Para manter a performance da aplicação web, implementou-se uma estratégia de subamostragem: embora a integração seja realizada com passo pequeno ($h = 0.05$), apenas 1 a cada 5 pontos é renderizado nos gráficos, reduzindo o custo de visualização sem comprometer a precisão numérica.
+
+\section{Conclusão}
+
+A análise comparativa revelou o \textit{trade-off} entre precisão e complexidade computacional. O Euler, apesar de simples, acumula erros significativos, especialmente em sistemas de longo prazo ou com dinâmica oscilatória. O RK4 demonstrou ser preferível quando alta precisão e preservação de propriedades qualitativas são necessárias.
+
+A extensão para o sistema predador-presa evidenciou a capacidade dos métodos numéricos em capturar comportamentos complexos de sistemas acoplados. O RK4 vetorial preservou com êxito as órbitas fechadas características do modelo de Lotka-Volterra, demonstrando que métodos de alta ordem são essenciais para sistemas conservativos onde a estabilidade a longo prazo é crítica.
+
+A implementação em tecnologias web modernas permitiu criar uma ferramenta interativa de valor pedagógico, possibilitando a exploração visual da relação entre parâmetros, condições iniciais e dinâmica do sistema. A interface permite comparações diretas entre métodos e visualização em tempo real de diagramas de fase, facilitando o entendimento intuitivo de conceitos abstratos de sistemas dinâmicos.
+
+Trabalhos futuros podem incluir a análise de estabilidade linear ao redor dos pontos de equilíbrio, implementação de métodos adaptativos de passo e extensão para sistemas de dimensão superior.
+
+\begin{thebibliography}{9}
+
+\bibitem{burden}
+Burden, R. L., Faires, J. D., \& Burden, A. M. (2015). \textit{Numerical Analysis}. 10th ed. Cengage Learning.
+
+\bibitem{strogatz}
+Strogatz, S. H. (2018). \textit{Nonlinear Dynamics and Chaos}. 2nd ed. CRC Press.
+
+\bibitem{boyce}
+Boyce, W. E., \& DiPrima, R. C. (2017). \textit{Elementary Differential Equations and Boundary Value Problems}. 11th ed. Wiley.
+
+\bibitem{lotka}
+Lotka, A. J. (1925). \textit{Elements of Physical Biology}. Williams \& Wilkins Company.
+
+\bibitem{volterra}
+Volterra, V. (1926). Fluctuations in the Abundance of a Species considered Mathematically. \textit{Nature}, 118(2972), 558--560.
+
+\bibitem{react}
+Meta Platforms, Inc. (2024). \textit{React Documentation}. Disponível em: \url{https://react.dev/}
+
+\end{thebibliography}
+
+\end{document}
