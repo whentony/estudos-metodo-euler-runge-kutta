@@ -1,3 +1,9 @@
+// Modelo Logístico: dy/dt = r * y * (1 - y/K)
+export function modeloLogistico(t: number, y: number, r: number, K: number): number {
+    return r * y * (1 - y / K);
+}
+
+// Runge-Kutta 4ª ordem para sistemas de EDOs (Predador-Presa)
 export default function rungeKutta4Sistema(f1: (t: number, x1: number, x2: number) => number,
     f2: (t: number, x1: number, x2: number) => number,
     x10: number,

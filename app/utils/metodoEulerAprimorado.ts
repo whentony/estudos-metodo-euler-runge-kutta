@@ -1,4 +1,4 @@
-import modeloLogistico from "./modelos";
+import { modeloLogistico } from "./modelos";
 
 const eulerAprimorado = (r, K, y0, tf, h) => {
     const n = Math.floor(tf / h);
