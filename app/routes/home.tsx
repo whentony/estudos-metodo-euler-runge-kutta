@@ -3,6 +3,7 @@ import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, Responsi
 import euler from '~/utils/metodoEuler';
 import eulerAprimorado from '~/utils/metodoEulerAprimorado';
 import rungeKutta4 from '~/utils/metodoRungeKutta4';
+import rungeKutta3 from '~/utils/metodoRungeKutta3';
 import rungeKutta4Sistema from '~/utils/modelos';
 import solucaoExata from '~/utils/solucaoExata';
 
@@ -295,6 +296,367 @@ function PredadorPresa() {
 }
 
 // ============================================================================
+// COMPONENTE TANQUE CILÍNDRICO (Problema 8.19)
+// ============================================================================
+function TanqueCilindrico() {
+  const [aTanque, setATanque] = useState(3.13); // m²
+  const [aCano, setACano] = useState(0.06);     // m²
+  const [k1, setK1] = useState(300);            // kg/h
+  const [k2, setK2] = useState(200);            // kg/h
+  const [h0, setH0] = useState(3.0);            // m
+  const [tf, setTf] = useState(150);            // s
+  const [hStep, setHStep] = useState(0.1);      // s (passo)
+
+  const g = 9.81;
+  const rho = 1000;
+
+  const dados = useMemo(() => {
+    // ERRO COMUM DE LIVRO: O livro cita K1 e K2 em kg/h, 
+    // mas a área do cano (0.06m²) gera uma saída de ~460 kg/s (!!!).
+    // Se convertermos K1 e K2 para kg/s dividindo por 3600, a entrada é < 0.1 kg/s e o tanque seca na hora.
+    // Para que as ondas funcionem como o autor pretendia, os valores 300 e 200 devem ser usados
+    // diretamente como kg/s (ou as outras unidades da equação estão em horas).
+    // Aqui usaremos os valores numéricos puros inseridos.
+    const k1_val = k1;
+    const k2_val = k2;
+
+    // dh/dt
+    const f = (t: number, hVal: number): number => {
+      // Impede raiz negativa se hVal for menor que 0
+      const hSeguro = Math.max(0, hVal);
+      const termoIn = (k1_val + k2_val * Math.cos((Math.PI / 12) * t)) / (rho * aTanque);
+      
+      // Se hSeguro for 0 e termoIn for menor que 0, não vai acontecer pois K1 e K2 são pos
+      // Mas se o tanque secar (h <= 0), a vazão de saída deve ser limitada
+      const termoOut = (aCano / aTanque) * Math.sqrt(2 * g * hSeguro);
+      
+      let deriv = termoIn - termoOut;
+      
+      // Se a altura tá zero ou negativa e a derivada é negativa, trava em zero
+      // para simular que o tanque está vazio e não pode esvaziar mais.
+      if (hVal <= 0 && deriv < 0) {
+        return 0;
+      }
+      
+      return deriv;
+    };
+
+    const resultadosRK3 = rungeKutta3(f, h0, tf, hStep);
+
+    // Para evitar poluir o gráfico com dezenas de milhares de pontos (se tf for alto)
+    // pegamos um subset razoável (por exemplo, max 500 pontos)
+    const pulo = Math.ceil(resultadosRK3.length / 500);
+    const dadosFiltrados = resultadosRK3.filter((_, idx) => idx % pulo === 0);
+
+    return dadosFiltrados;
+  }, [aTanque, aCano, k1, k2, h0, tf, hStep]);
+
+  const Slider = ({ label, value, setValue, min, max, step, unit }: any) => (
+    <div className="mb-4">
+      <div className="flex justify-between items-center mb-1">
+        <label className="text-sm font-medium text-gray-700">{label}</label>
+        <span className="text-sm font-bold text-blue-600">{value.toFixed(2)} {unit}</span>
+      </div>
+      <input
+        type="range"
+        min={min}
+        max={max}
+        step={step}
+        value={value}
+        onChange={(e) => setValue(parseFloat(e.target.value))}
+        className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer accent-blue-600"
+      />
+    </div>
+  );
+
+  return (
+    <div className="min-h-screen bg-gray-50 p-4">
+      <div className="max-w-7xl mx-auto">
+        <div className="text-center mb-4">
+          <h1 className="text-xl font-bold text-gray-800">
+            Tanque Cilíndrico de Água - Runge-Kutta 3
+          </h1>
+          <p className="text-gray-600 text-sm mt-1">
+            ρA_tanque (dh/dt) = K₁ + K₂ cos(π/12 t) - ρA_cano √(2gh)
+          </p>
+        </div>
+
+        <div className="grid grid-cols-1 lg:grid-cols-4 gap-4">
+          {/* Controles */}
+          <div className="space-y-4">
+            <div className="bg-white rounded-lg shadow p-4">
+              <h2 className="text-sm font-bold text-gray-800 mb-4 pb-2 border-b">Parâmetros do Tanque</h2>
+              <Slider label="Área Tanque" value={aTanque} setValue={setATanque} min={1} max={10} step={0.1} unit="m²" />
+              <Slider label="Área Cano Saída" value={aCano} setValue={setACano} min={0.01} max={0.5} step={0.01} unit="m²" />
+              <Slider label="Entrada K₁" value={k1} setValue={setK1} min={0} max={1000} step={10} unit="kg/s" />
+              <Slider label="Variação K₂" value={k2} setValue={setK2} min={0} max={500} step={10} unit="kg/s" />
+            </div>
+
+            <div className="bg-white rounded-lg shadow p-4">
+              <h2 className="text-sm font-bold text-gray-800 mb-4 pb-2 border-b">Simulação</h2>
+              <Slider label="Altura Inicial (h₀)" value={h0} setValue={setH0} min={0.5} max={10} step={0.5} unit="m" />
+              <Slider label="Tempo Final (tf)" value={tf} setValue={setTf} min={10} max={600} step={10} unit="s" />
+              <Slider label="Passo (h_step)" value={hStep} setValue={setHStep} min={0.01} max={1} step={0.01} unit="s" />
+            </div>
+          </div>
+
+          {/* Gráfico */}
+          <div className="lg:col-span-3 space-y-4">
+            <div className="bg-white rounded-lg shadow p-4">
+              <h3 className="font-bold text-gray-800 mb-3 text-center">Nível da Água h(t) em metros</h3>
+              <div className="h-96">
+                <ResponsiveContainer width="100%" height="100%">
+                  <LineChart data={dados} margin={{ top: 10, right: 30, left: 10, bottom: 20 }}>
+                    <CartesianGrid strokeDasharray="3 3" stroke="#e0e0e0" />
+                    <XAxis
+                      dataKey="t"
+                      label={{ value: 'Tempo t (s)', position: 'bottom', offset: 0 }}
+                      tick={{ fontSize: 11 }}
+                    />
+                    <YAxis
+                      label={{ value: 'Altura h (m)', angle: -90, position: 'insideLeft', offset: 10 }}
+                      tick={{ fontSize: 11 }}
+                    />
+                    <Tooltip 
+                      formatter={(val: number) => [`${val.toFixed(4)} m`, 'Altura h']} 
+                      labelFormatter={(label) => `Tempo t = ${label} s`}
+                    />
+                    <Legend wrapperStyle={{ fontSize: '12px', paddingTop: '10px' }} />
+                    <Line
+                      type="monotone"
+                      dataKey="y"
+                      stroke="#0ea5e9"
+                      strokeWidth={3}
+                      dot={false}
+                      name="Nível do Tanque (RK3)"
+                      isAnimationActive={false}
+                    />
+                  </LineChart>
+                </ResponsiveContainer>
+              </div>
+            </div>
+            
+            <div className="bg-white rounded-lg shadow p-4 grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
+                 <h3 className="font-bold text-gray-800 mb-2">Comportamento Dinâmico (Ondas)</h3>
+                 <p className="text-sm text-gray-700">
+                   Para que o nível do tanque forme ondas como previsto, assumimos que os valores K1 e K2 fornecidos no livro (300 e 200) já estão na mesma base de tempo da gravidade (segundos). Com a função cosseno, a vazão de entrada pulsa, fazendo o nível subir e descer conforme a água entra mais rápido ou mais devagar do que o cano consegue esvaziar.
+                 </p>
+              </div>
+              <div className="bg-cyan-50 p-3 rounded-lg border-l-4 border-cyan-500">
+                <h4 className="font-bold text-cyan-800 text-sm mb-1">Cálculo de Derivada Oculto (RK3)</h4>
+                <div className="font-mono text-xs text-gray-800 bg-white p-2 rounded shadow-inner">
+                  dh/dt = [K_in(t) / (ρ·A_tanque)] - (A_cano/A_tanque)·√(2gh)
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ============================================================================
+// COMPONENTE TANQUE ESFÉRICO (Problema 8.20)
+// ============================================================================
+function TanqueEsferico() {
+  const [rTanque, setRTanque] = useState(4.0); // m
+  const [rCano, setRCano] = useState(0.02);    // m
+  const [h0, setH0] = useState(6.0);           // m
+  const [hAlvo, setHAlvo] = useState(0.5);     // m
+  const [hStep, setHStep] = useState(10.0);    // s (passo numérico de integração)
+
+  const g = 9.81;
+
+  const simulacao = useMemo(() => {
+    const f = (t: number, h: number): number => {
+      // Evita NaN se h ficar negativo
+      if (h <= 0) return 0;
+      
+      const num = Math.pow(rCano, 2) * Math.sqrt(2 * g * h);
+      const den = 2 * h * rTanque - Math.pow(h, 2);
+      
+      // Evita divisão por zero se h for muito próximo do diâmetro ou de 0
+      if (den <= 0) return 0;
+      
+      return -(num / den);
+    };
+
+    const pts = [];
+    let currT = 0;
+    let currH = h0;
+    
+    // Adiciona ponto inicial
+    pts.push({ t: currT, y: currH, horas: 0 });
+
+    // Roda o loop até atingir a altura alvo ou bater limite de segurança (pra não travar o navegador)
+    const MAX_ITERACOES = 50000; 
+    let i = 0;
+
+    // Garante que o alvo não seja maior que a altura inicial e evita travar em cálculos negativos
+    if (h0 > hAlvo) {
+      while (currH > hAlvo && i < MAX_ITERACOES) {
+        // Runge-Kutta de 4ª ordem padrão
+        const k1 = f(currT, currH);
+        const k2 = f(currT + hStep / 2, currH + (hStep * k1) / 2);
+        const k3 = f(currT + hStep / 2, currH + (hStep * k2) / 2);
+        const k4 = f(currT + hStep, currH + hStep * k3);
+  
+        currH = currH + (hStep / 6) * (k1 + 2 * k2 + 2 * k3 + k4);
+        currT += hStep;
+        
+        // Impede de afundar abaixo do nível 0 por instabilidade
+        if (currH < 0) currH = 0;
+        
+        pts.push({ t: currT, y: currH, horas: currT / 3600 });
+        i++;
+      }
+    }
+
+    // Filtrar dados para o gráfico não engasgar (Recharts prefere < 500 pontos)
+    const maxPontosNoGrafico = 300;
+    const pulo = Math.ceil(pts.length / maxPontosNoGrafico);
+    const dadosGrafico = pts.filter((_, idx) => idx % pulo === 0 || idx === pts.length - 1);
+
+    const tempoFinalSegundos = pts[pts.length - 1].t;
+    const tempoFinalHoras = tempoFinalSegundos / 3600;
+
+    return { 
+      dadosGrafico, 
+      tempoFinalSegundos, 
+      tempoFinalHoras,
+      iteracoes: pts.length
+    };
+  }, [rTanque, rCano, h0, hAlvo, hStep]);
+
+  const Slider = ({ label, value, setValue, min, max, step, unit }: any) => (
+    <div className="mb-4">
+      <div className="flex justify-between items-center mb-1">
+        <label className="text-sm font-medium text-gray-700">{label}</label>
+        <span className="text-sm font-bold text-blue-600">{value.toFixed(2)} {unit}</span>
+      </div>
+      <input
+        type="range"
+        min={min}
+        max={max}
+        step={step}
+        value={value}
+        onChange={(e) => setValue(parseFloat(e.target.value))}
+        className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer accent-blue-600"
+      />
+    </div>
+  );
+
+  return (
+    <div className="min-h-screen bg-gray-50 p-4">
+      <div className="max-w-7xl mx-auto">
+        <div className="text-center mb-4">
+          <h1 className="text-xl font-bold text-gray-800">
+            Tanque Esférico - Esvaziamento (Runge-Kutta 4)
+          </h1>
+          <p className="text-gray-600 text-sm mt-1">
+            dh/dt = - [r² √(2gh)] / [2hR - h²]
+          </p>
+        </div>
+
+        <div className="grid grid-cols-1 lg:grid-cols-4 gap-4">
+          {/* Controles */}
+          <div className="space-y-4">
+            <div className="bg-white rounded-lg shadow p-4">
+              <h2 className="text-sm font-bold text-gray-800 mb-4 pb-2 border-b">Parâmetros Geométricos</h2>
+              <Slider label="Raio do Tanque (R)" value={rTanque} setValue={setRTanque} min={1} max={10} step={0.5} unit="m" />
+              <Slider label="Raio do Furo (r)" value={rCano} setValue={setRCano} min={0.005} max={0.1} step={0.001} unit="m" />
+            </div>
+
+            <div className="bg-white rounded-lg shadow p-4">
+              <h2 className="text-sm font-bold text-gray-800 mb-4 pb-2 border-b">Limites</h2>
+              <Slider label="Altura Inicial (h₀)" value={h0} setValue={setH0} min={1} max={rTanque * 2} step={0.5} unit="m" />
+              <Slider label="Altura Alvo (Fim)" value={hAlvo} setValue={setHAlvo} min={0} max={h0 - 0.1} step={0.1} unit="m" />
+            </div>
+            
+            <div className="bg-white rounded-lg shadow p-4">
+              <h2 className="text-sm font-bold text-gray-800 mb-4 pb-2 border-b">Integração RK4</h2>
+              <Slider label="Passo de Tempo (h)" value={hStep} setValue={setHStep} min={1} max={120} step={1} unit="s" />
+              <p className="text-xs text-gray-500 mt-2 text-center">
+                Quanto menor o passo, mais exato é o resultado, mas requer mais poder de processamento.
+              </p>
+            </div>
+          </div>
+
+          {/* Gráfico e Resultados */}
+          <div className="lg:col-span-3 space-y-4">
+            
+            {/* CARD DE DESTAQUE COM A RESPOSTA */}
+            <div className="bg-gradient-to-r from-blue-600 to-indigo-700 rounded-xl shadow-lg p-6 text-white text-center border border-blue-800">
+              <h3 className="text-blue-100 text-sm font-bold uppercase tracking-wider mb-2">Tempo Necessário para Atingir a Altura Alvo</h3>
+              <div className="flex flex-col md:flex-row items-center justify-center gap-6">
+                <div>
+                  <span className="text-4xl md:text-5xl font-black">{simulacao.tempoFinalSegundos.toFixed(1)}</span>
+                  <span className="text-xl font-medium ml-2 text-blue-200">Segundos</span>
+                </div>
+                <div className="w-px h-12 bg-blue-400 hidden md:block opacity-50"></div>
+                <div>
+                  <span className="text-3xl md:text-4xl font-bold text-blue-100">{simulacao.tempoFinalHoras.toFixed(3)}</span>
+                  <span className="text-lg ml-2 text-blue-300">Horas</span>
+                </div>
+              </div>
+              <p className="mt-3 text-xs text-blue-200 opacity-80">
+                Calculado em {simulacao.iteracoes} passos numéricos usando Runge-Kutta de 4ª Ordem.
+              </p>
+            </div>
+
+            {/* GRÁFICO */}
+            <div className="bg-white rounded-lg shadow p-4">
+              <h3 className="font-bold text-gray-800 mb-3 text-center">Nível da Água h(t) em metros</h3>
+              <div className="h-80">
+                <ResponsiveContainer width="100%" height="100%">
+                  <LineChart data={simulacao.dadosGrafico} margin={{ top: 10, right: 30, left: 10, bottom: 20 }}>
+                    <CartesianGrid strokeDasharray="3 3" stroke="#e0e0e0" />
+                    <XAxis
+                      dataKey="t"
+                      label={{ value: 'Tempo t (s)', position: 'bottom', offset: 0 }}
+                      tick={{ fontSize: 11 }}
+                    />
+                    <YAxis
+                      label={{ value: 'Altura h (m)', angle: -90, position: 'insideLeft', offset: 10 }}
+                      tick={{ fontSize: 11 }}
+                      domain={[0, h0 + 0.5]}
+                    />
+                    <Tooltip 
+                      formatter={(val: number) => [`${val.toFixed(4)} m`, 'Altura h']} 
+                      labelFormatter={(label) => `Tempo t = ${label} s (${(Number(label)/3600).toFixed(2)}h)`}
+                    />
+                    <Legend wrapperStyle={{ fontSize: '12px', paddingTop: '10px' }} />
+                    <Line
+                      type="monotone"
+                      dataKey="y"
+                      stroke="#4f46e5"
+                      strokeWidth={3}
+                      dot={false}
+                      name="Nível do Tanque (RK4)"
+                      isAnimationActive={false}
+                    />
+                  </LineChart>
+                </ResponsiveContainer>
+              </div>
+            </div>
+            
+            {/* EXPLICACAO */}
+            <div className="bg-white rounded-lg shadow p-4">
+              <h3 className="font-bold text-gray-800 mb-2">Análise do Problema 8.20</h3>
+              <p className="text-sm text-gray-700">
+                O modelo simula um tanque esférico de raio <strong>R = {rTanque.toFixed(1)}m</strong>, cuja área transversal varia dependendo da altura da água. Quando a água está na metade da esfera ($h = R$), a superfície é máxima, fazendo com que o nível desça mais devagar. O escoamento depende da gravidade e da área do furo inferior (raio <strong>r = {rCano.toFixed(3)}m</strong>). Note como a curva do gráfico se achata no meio (descendo lentamente) e inclina nas pontas (descendo rápido).
+              </p>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ============================================================================
 // COMPONENTE PRINCIPAL
 // ============================================================================
 
@@ -396,28 +758,64 @@ export default function ModeloLogisticoCorrigido() {
 
   const condicoesAtivasCount = condicoes.filter(c => c.ativo).length;
 
-  // Se o modelo ativo for predador-presa, renderizar o componente
+  const SeletorMenu = () => (
+    <div className="bg-white rounded-lg shadow p-3 flex flex-wrap items-center justify-center gap-4">
+      <button
+        onClick={() => setModeloAtivo('logistico')}
+        className={`px-6 py-2 rounded-lg font-medium transition-all ${modeloAtivo === 'logistico' ? 'bg-blue-600 text-white shadow-md' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'}`}
+      >
+        Modelo Logístico
+      </button>
+      <button
+        onClick={() => setModeloAtivo('predador-presa')}
+        className={`px-6 py-2 rounded-lg font-medium transition-all ${modeloAtivo === 'predador-presa' ? 'bg-blue-600 text-white shadow-md' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'}`}
+      >
+        Predador-Presa
+      </button>
+      <button
+        onClick={() => setModeloAtivo('tanque')}
+        className={`px-6 py-2 rounded-lg font-medium transition-all ${modeloAtivo === 'tanque' ? 'bg-blue-600 text-white shadow-md' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'}`}
+      >
+        Tanque Cilíndrico
+      </button>
+      <button
+        onClick={() => setModeloAtivo('tanque-esferico')}
+        className={`px-6 py-2 rounded-lg font-medium transition-all ${modeloAtivo === 'tanque-esferico' ? 'bg-blue-600 text-white shadow-md' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'}`}
+      >
+        Tanque Esférico
+      </button>
+    </div>
+  );
+
   if (modeloAtivo === 'predador-presa') {
     return (
       <div className="min-h-screen bg-gray-50 p-4">
-        {/* Seletor de Modelo */}
         <div className="max-w-7xl mx-auto mb-4">
-          <div className="bg-white rounded-lg shadow p-3 flex items-center justify-center gap-4">
-            <button
-              onClick={() => setModeloAtivo('logistico')}
-              className="px-6 py-2 rounded-lg font-medium transition-all bg-gray-100 text-gray-700 hover:bg-gray-200"
-            >
-              Modelo Logístico
-            </button>
-            <button
-              onClick={() => setModeloAtivo('predador-presa')}
-              className="px-6 py-2 rounded-lg font-medium transition-all bg-blue-600 text-white shadow-md"
-            >
-              Predador-Presa (Lotka-Volterra)
-            </button>
-          </div>
+          <SeletorMenu />
         </div>
         <PredadorPresa />
+      </div>
+    );
+  }
+
+  if (modeloAtivo === 'tanque') {
+    return (
+      <div className="min-h-screen bg-gray-50 p-4">
+        <div className="max-w-7xl mx-auto mb-4">
+          <SeletorMenu />
+        </div>
+        <TanqueCilindrico />
+      </div>
+    );
+  }
+
+  if (modeloAtivo === 'tanque-esferico') {
+    return (
+      <div className="min-h-screen bg-gray-50 p-4">
+        <div className="max-w-7xl mx-auto mb-4">
+          <SeletorMenu />
+        </div>
+        <TanqueEsferico />
       </div>
     );
   }
@@ -426,20 +824,7 @@ export default function ModeloLogisticoCorrigido() {
     <div className="min-h-screen bg-gray-50 p-4">
       {/* Seletor de Modelo */}
       <div className="max-w-7xl mx-auto mb-4">
-        <div className="bg-white rounded-lg shadow p-3 flex items-center justify-center gap-4">
-          <button
-            onClick={() => setModeloAtivo('logistico')}
-            className="px-6 py-2 rounded-lg font-medium transition-all bg-blue-600 text-white shadow-md"
-          >
-            Modelo Logístico
-          </button>
-          <button
-            onClick={() => setModeloAtivo('predador-presa')}
-            className="px-6 py-2 rounded-lg font-medium transition-all bg-gray-100 text-gray-700 hover:bg-gray-200"
-          >
-            Predador-Presa (Lotka-Volterra)
-          </button>
-        </div>
+        <SeletorMenu />
       </div>
 
       <div className="max-w-7xl mx-auto">
